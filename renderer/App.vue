@@ -2,6 +2,14 @@
 import { NConfigProvider } from "naive-ui";
 import TitleBar from "./components/TitleBar.vue";
 import DragRegion from "./components/DragRegion.vue";
+
+import { onMounted, nextTick } from "vue";
+
+onMounted(async () => {
+  console.log("App mounted");
+  await nextTick();
+  throw new Error("Test error on mount");
+});
 </script>
 
 <template>
@@ -11,9 +19,11 @@ import DragRegion from "./components/DragRegion.vue";
     </aside>
     <div class="flex-auto">
       <title-bar>
-        <drag-region class="w-full"></drag-region>
+        <drag-region class="w-full"> </drag-region>
       </title-bar>
       main
     </div>
   </n-config-provider>
 </template>
+
+<style scoped></style>

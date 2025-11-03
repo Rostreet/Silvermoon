@@ -11,6 +11,7 @@ import {
   type IpcMainEvent,
 } from "electron";
 import { debounce } from "@common/utils";
+import logManager from "./LogService";
 
 import path from "node:path";
 
@@ -80,7 +81,7 @@ class WindowService {
 
     return window;
   }
-  private _setupWinLifecycle(window: BrowserWindow, _name: WindowNames) {
+  private _setupWinLifecycle(window: BrowserWindow, name: WindowNames) {
     const updateWinStatus = debounce(
       () =>
         !window?.isDestroyed() &&
@@ -93,6 +94,7 @@ class WindowService {
     window.once("closed", () => {
       window?.destroy();
       window?.removeListener("resize", updateWinStatus);
+      logManager.info(`Window closed : ${name}`);
     });
     window.on("resize", updateWinStatus);
     return this;

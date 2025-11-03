@@ -13,6 +13,8 @@ const statAsync = promisify(fs.stat);
 const unlinkAsync = promisify(fs.unlink);
 class LogService {
   private static _instance: LogService;
+  private LOG_RETENTION_DAYS = 7; //日志保留天数
+  private readonly CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000; //每天清理一次
 
   private constructor() {
     const logPath = path.join(app.getPath("userData"), "logs");
@@ -48,6 +50,69 @@ class LogService {
 
     //配置文件日志级别
     log.transports.file.level = "debug";
+
+    //重写console方法
+    this._rewriteConsole();
+
+    this._cleanupOldLogs();
+    this._setupIpcEvents();
+
+    this.info("LogService initialized successfully.");
+    //设置定时清理旧日志任务
+    setInterval(() => {
+      this._cleanupOldLogs();
+    }, this.CLEANUP_INTERVAL_MS);
+  }
+
+  public _setupIpcEvents(): void {
+    ipcMain.on(IPC_EVENTS.LOG_DEBUG, (_e, message: string, ...meta: any[]) => {
+      this.debug(message, ...meta);
+    });
+    ipcMain.on(IPC_EVENTS.LOG_INFO, (_e, message: string, ...meta: any[]) => {
+      this.info(message, ...meta);
+    });
+    ipcMain.on(IPC_EVENTS.LOG_WARN, (_e, message: string, ...meta: any[]) => {
+      this.warn(message, ...meta);
+    });
+    ipcMain.on(IPC_EVENTS.LOG_ERROR, (_e, message: string, ...meta: any[]) => {
+      this.error(message, ...meta);
+    });
+  }
+
+  public async _cleanupOldLogs(): Promise<void> {
+    try {
+      const logPath = path.join(app.getPath("userData"), "logs");
+      if (!fs.existsSync(logPath)) return;
+      const files = await readdirAsync(logPath);
+      const now = Date.now();
+      const expirationDate = new Date(
+        now - this.LOG_RETENTION_DAYS * 24 * 60 * 60 * 1000
+      );
+      let deletedCount = 0;
+      for (const file of files) {
+        if (!file.endsWith(".log")) continue;
+        const filePath = path.join(logPath, file);
+        try {
+          const stats = await statAsync(filePath);
+          if (stats.isFile() && stats.birthtime < expirationDate) {
+            await unlinkAsync(filePath);
+            deletedCount++;
+          }
+        } catch (err) {
+          this.error(`Failed to delete log file: ${filePath}`, err);
+        }
+      }
+    } catch (err) {
+      this.error("Failed to clean up old log files", err);
+    }
+  }
+
+  private _rewriteConsole(): void {
+    console.log = log.info;
+    console.info = log.info;
+    console.warn = log.warn;
+    console.error = log.error;
+    console.debug = log.debug;
   }
 
   /**
